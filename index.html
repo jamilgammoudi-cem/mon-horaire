@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Mon horaire</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            background-color: #f5f5f5;
+            color: #222;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .controle {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .controle label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .controle input {
+            font-size: 16px;
+            padding: 8px;
+            border: 1px solid #aaa;
+            border-radius: 5px;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            min-width: 900px;
+            border-collapse: collapse;
+            background-color: white;
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 15px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #333;
+            color: white;
+        }
+
+        .semaine {
+            background-color: #eeeeee;
+            font-weight: bold;
+            width: 80px;
+        }
+
+        /*
+         * Journée de travail
+         */
+        .jourTravail {
+              background-color: #c6efce !important;
+				color: #006100 !important;
+			font-weight: bold;
+        }
+
+        /*
+         * Première ligne de dates
+         */
+        .date {
+            font-weight: bold;
+        }
+
+        #message {
+            text-align: center;
+            margin-top: 15px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Mon horaire</h1>
+
+    <div class="controle">
+
+        <label for="dateDebut">
+            Première date :
+        </label>
+
+        <input
+            type="date"
+            id="dateDebut"
+            value="2026-10-04"
+        >
+
+    </div>
+
+
+    <div class="table-container">
+
+        <table id="horaire">
+
+            <thead>
+
+                <tr>
+
+                    <th>Semaine</th>
+
+                    <th>Dimanche</th>
+                    <th>Lundi</th>
+                    <th>Mardi</th>
+                    <th>Mercredi</th>
+                    <th>Jeudi</th>
+                    <th>Vendredi</th>
+                    <th>Samedi</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody id="tableauSemaines">
+
+                <!-- Les semaines seront générées ici -->
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+
+    <div id="message">
+        Chargement des dates de travail...
+    </div>
+
+
+    <script>
+
+        /*
+         * ==========================================
+         * CONFIGURATION
+         * ==========================================
+         */
+
+        /*
+         * Nombre de semaines à afficher
+         */
+        const nombreSemaines = 20;
+
+
+        /*
+         * ==========================================
+         * ÉLÉMENTS HTML
+         * ==========================================
+         */
+
+        const dateInput =
+            document.getElementById("dateDebut");
+
+        const tableauSemaines =
+            document.getElementById("tableauSemaines");
+
+        const message =
+            document.getElementById("message");
+
+
+        /*
+         * ==========================================
+         * CHARGER travail.txt
+         * ==========================================
+         */
+
+        async function chargerDatesTravail() {
+
+            try {
+
+                const reponse =
+                    await fetch("travail.txt");
+
+                if (!reponse.ok) {
+
+                    throw new Error(
+                        "Impossible de charger travail.txt"
+                    );
+                }
+
+                const texte =
+                    await reponse.text();
+
+
+                /*
+                 * Une date par ligne
+                 */
+                const dates =
+                    texte
+                        .split(/\r?\n/)
+                        .map(ligne => ligne.trim())
+                        .filter(ligne => ligne !== "");
+
+
+                /*
+                 * Set pour faciliter les recherches
+                 */
+                return new Set(dates);
+
+            } catch (erreur) {
+
+                console.error(erreur);
+
+                message.textContent =
+                    "Erreur : impossible de charger travail.txt";
+
+                return new Set();
+            }
+        }
+
+
+        /*
+         * ==========================================
+         * FORMATTER UNE DATE
+         * ==========================================
+         */
+
+        function formatDateISO(date) {
+
+            const annee =
+                date.getFullYear();
+
+            const mois =
+                String(
+                    date.getMonth() + 1
+                ).padStart(2, "0");
+
+            const jour =
+                String(
+                    date.getDate()
+                ).padStart(2, "0");
+
+
+            return `${annee}-${mois}-${jour}`;
+        }
+
+
+        /*
+         * ==========================================
+         * AFFICHER UNE DATE
+         * ==========================================
+         */
+
+        function afficherDate(date) {
+
+            return date.toLocaleDateString(
+                "fr-CA",
+                {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric"
+                }
+            );
+        }
+
+
+        /*
+         * ==========================================
+         * GÉNÉRER LE TABLEAU
+         * ==========================================
+         */
+
+        async function genererTableau() {
+
+            /*
+             * Charger les dates de travail
+             */
+            const datesTravail =
+                await chargerDatesTravail();
+
+
+            /*
+             * Vérifier la date de départ
+             */
+            if (!dateInput.value) {
+
+                message.textContent =
+                    "Veuillez sélectionner une date.";
+
+                return;
+            }
+
+
+            /*
+             * Date de départ
+             */
+            const dateDebut =
+                new Date(
+                    dateInput.value + "T00:00:00"
+                );
+
+
+            /*
+             * Vider le tableau
+             */
+            tableauSemaines.innerHTML = "";
+
+
+            /*
+             * Générer les semaines
+             */
+            for (
+                let semaine = 0;
+                semaine < nombreSemaines;
+                semaine++
+            ) {
+
+
+                /*
+                 * Créer une ligne
+                 */
+                const ligne =
+                    document.createElement("tr");
+
+
+                /*
+                 * Colonne numéro de semaine
+                 */
+                const celluleSemaine =
+                    document.createElement("td");
+
+                celluleSemaine.classList.add(
+                    "semaine"
+                );
+
+                celluleSemaine.textContent =
+                    semaine + 1;
+
+
+                ligne.appendChild(
+                    celluleSemaine
+                );
+
+
+                /*
+                 * Générer les 7 jours
+                 */
+                for (
+                    let jour = 0;
+                    jour < 7;
+                    jour++
+                ) {
+
+
+                    /*
+                     * Calculer la date
+                     */
+                    const date =
+                        new Date(dateDebut);
+
+                    date.setDate(
+                        dateDebut.getDate()
+                        + (semaine * 7)
+                        + jour
+                    );
+
+
+                    /*
+                     * Créer la cellule
+                     */
+                    const cellule =
+                        document.createElement("td");
+
+                    cellule.classList.add(
+                        "date"
+                    );
+
+
+                    /*
+                     * Date au format YYYY-MM-DD
+                     */
+                    const dateISO =
+                        formatDateISO(date);
+
+
+                    /*
+                     * Afficher la date
+                     */
+                    cellule.textContent =
+                        afficherDate(date);
+
+
+                    /*
+                     * Vérifier si c'est un jour
+                     * de travail
+                     */
+                    if (
+                        datesTravail.has(dateISO)
+                    ) {
+
+                        cellule.classList.add(
+                            "jourTravail"
+                        );
+                    }
+
+
+                    /*
+                     * Ajouter la cellule
+                     */
+                    ligne.appendChild(
+                        cellule
+                    );
+                }
+
+
+                /*
+                 * Ajouter la ligne au tableau
+                 */
+                tableauSemaines.appendChild(
+                    ligne
+                );
+            }
+
+
+            /*
+             * Message
+             */
+            message.textContent =
+                "Les journées de travail sont indiquées en jaune.";
+        }
+
+
+        /*
+         * ==========================================
+         * SI LA DATE DE DÉPART CHANGE
+         * ==========================================
+         */
+
+        dateInput.addEventListener(
+            "change",
+            genererTableau
+        );
+
+
+        /*
+         * ==========================================
+         * PREMIER AFFICHAGE
+         * ==========================================
+         */
+
+        genererTableau();
+
+    </script>
+
+</body>
+</html>
